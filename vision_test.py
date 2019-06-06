@@ -8,6 +8,21 @@ import time
 import datetime
 #import numpy as np
 import math
+#import numpy as np
+#import transformations as tf
+
+# First import the library
+import pyrealsense2 as rs
+
+# Declare RealSense pipeline, encapsulating the actual device and sensors
+pipe = rs.pipeline()
+
+# Build config object and request pose data
+cfg = rs.config()
+cfg.enable_stream(rs.stream.pose)
+
+# Start streaming with requested config
+pipe.start(cfg)
 
 # Define tracking timer class
 class TrackTimer:
@@ -45,6 +60,27 @@ def send_vision(t,x,y,z,r,p,yaw):
     )
     vehicle.send_mavlink(msg)
     vehicle.flush()
+    
+def quaternion_to_euler(x, y, z, w):
+
+    t0 = +2.0 * (w * x + y * z)
+    t1 = +1.0 - 2.0 * (x * x + y * y)
+    #X = math.degrees(math.atan2(t0, t1))
+
+    t2 = +2.0 * (w * y - z * x)
+    t2 = +1.0 if t2 > +1.0 else t2
+    t2 = -1.0 if t2 < -1.0 else t2
+    #Y = math.degrees(math.asin(t2))
+
+    t3 = +2.0 * (w * z + x * y)
+    t4 = +1.0 - 2.0 * (y * y + z * z)
+    #Z = math.degrees(math.atan2(t3, t4))
+    
+    X = math.atan2(t0, t1)
+    Y = math.asin(t2)
+    Z = math.atan2(t3, t4)
+
+    return X, Y, Z
 
 
 #def callback(msg):
@@ -85,11 +121,25 @@ def listener_all(self, name, message):
 #rospy.spin()
 
 while (True):
-    if (trackfctime.estimate()):
-        send_vision(trackfctime.estimate(),0,0,0,0,0,0)
-    else:
-        send_vision(0,0,0,0,0,0,0)
-    time.sleep(0.1)
+    # Wait for the next set of frames from the camera
+    frames = pipe.wait_for_frames()
+
+    # Fetch pose frame
+    pose = frames.get_pose_frame()
+    if pose:
+        # Print some of the pose data to the terminal
+        data = pose.get_pose_data()
+        rpy = quaternion_to_euler(data.rotation.x,data.rotation.y,data.rotation.z,data.rotation.w)
+        if (trackfctime.estimate()):
+            send_vision(trackfctime.estimate(),data.translation.x,data.translation.z,data.translation.y,rpy.X,rpy.Z,rpy.Y)
+        else:
+            send_vision(0,data.translation.x,data.translation.z,data.translation.y,rpy.X,rpy.Z,rpy.Y)
+        print("Frame #{}".format(pose.frame_number))
+        print("Position: {}".format(data.translation))
+        print("Velocity: {}".format(data.velocity))
+        print("Acceleration: {}\n".format(data.acceleration))
+    
+    time.sleep(0.05)
 
 
 #Close vehicle object before exiting script
