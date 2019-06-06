@@ -32,7 +32,7 @@ class TrackTimer:
         self.debug = False
     def update(self, timeus):
         if self.debug:
-            print "Expected timeus: " +str(self.estimate()) +", actual timeus: " +str(timeus)
+            print ("Expected timeus: " +str(self.estimate()) +", actual timeus: " +str(timeus))
         # Messages come in or are processed asynchronously, out of order, so a later message may have an earlier timestamp.
         # So ignore any updates that are older than what we already know about
         if timeus > self.fctimeus:
